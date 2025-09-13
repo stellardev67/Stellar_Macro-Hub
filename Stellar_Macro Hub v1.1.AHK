@@ -8,35 +8,22 @@ PageSize := 10  ; repos per page
 CurrentPage := 1
 
 ; --- Fetch GitHub JSON ---
-Http := ComObjCreate("WinHttp.WinHttpRequest.5.1")
-Http.Open("GET", "https://api.github.com/users/" GitHubUser "/repos", false)
-Http.SetRequestHeader("User-Agent", "AHK")
-Http.Send()
-
-status := Http.Status
-if (status != 200) {
-    MsgBox, Failed to fetch repos! Status: %status%
-    ExitApp
-}
-
-RepoData := Http.ResponseText
-AllRepos := JSON_Load(RepoData)
+FetchRepos()
 
 ; --- Calculate total pages ---
-TotalPages := AllRepos.MaxIndex() // PageSize
-if (Mod(AllRepos.MaxIndex(), PageSize) != 0)
-    TotalPages += 1
+CalculateTotalPages()
 
 ; --- Build GUI ---
 Gui, New, +Resize
 Gui, Add, ListView, w1200 h500 vRepoList gOpenRepo Grid, Name|Description|URL|Status
 Gui, Add, Button, x+10 yp w100 h30 gPrevPage, Previous
 Gui, Add, Button, x+10 yp w100 h30 gNextPage, Next
+Gui, Add, Button, x+10 yp w100 h30 gRefresh, Refresh
 Gui, Add, Text, x+10 yp vPageInfo, Page %CurrentPage% of %TotalPages%
 
 ShowPage(CurrentPage)
 
-Gui, Show, AutoSize, Stellar Dev 67 Macros
+Gui, Show, AutoSize, Stellar Dev 67 Repos
 Return
 
 GuiClose:
@@ -65,10 +52,8 @@ ShowPage(page) {
     LV_ModifyCol(4, 100) ; Status
 
     ; update page info
-    totalPages := AllRepos.MaxIndex() // PageSize
-    if (Mod(AllRepos.MaxIndex(), PageSize) != 0)
-        totalPages += 1
-    GuiControl,, PageInfo, Page %page% of %totalPages%
+    CalculateTotalPages()
+    GuiControl,, PageInfo, Page %page% of %TotalPages%
 }
 
 PrevPage:
@@ -92,7 +77,37 @@ if (A_GuiEvent = "DoubleClick") {
 }
 Return
 
-; --- Robust JSON parser ---
+; --- Refresh repositories ---
+Refresh:
+FetchRepos()
+CurrentPage := 1
+ShowPage(CurrentPage)
+Return
+
+; --- Helper functions ---
+FetchRepos() {
+    global GitHubUser, AllRepos
+    Http := ComObjCreate("WinHttp.WinHttpRequest.5.1")
+    Http.Open("GET", "https://api.github.com/users/" GitHubUser "/repos", false)
+    Http.SetRequestHeader("User-Agent", "AHK")
+    Http.Send()
+    status := Http.Status
+    if (status != 200) {
+        MsgBox, Failed to fetch repos! Status: %status%
+        return
+    }
+    RepoData := Http.ResponseText
+    AllRepos := JSON_Load(RepoData)
+}
+
+CalculateTotalPages() {
+    global AllRepos, PageSize, TotalPages
+    TotalPages := AllRepos.MaxIndex() // PageSize
+    if (Mod(AllRepos.MaxIndex(), PageSize) != 0)
+        TotalPages += 1
+}
+
+; --- JSON parser ---
 JSON_Load(json) {
     obj := []
     json := StrReplace(json, "`n", "")
