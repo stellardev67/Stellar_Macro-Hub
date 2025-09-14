@@ -28,7 +28,7 @@ ExitApp
 
 ; --- Show repositories for the current page ---
 ShowPage(page) {
-    global AllRepos, PageSize
+    global AllRepos, PageSize, GitHubUser  ; <-- add GitHubUser here
     LV_Delete()
     start := (page-1)*PageSize + 1
     end := Min(page*PageSize, AllRepos.MaxIndex())
@@ -39,7 +39,7 @@ ShowPage(page) {
             continue
         if (counter > end)
             break
-        LV_Add("", repo["name"], repo["description"], repo["html_url"], repo["private"] ? "Private" : "Public")
+        LV_Add("", repo["name"], repo["description"], "https://github.com/" GitHubUser "/" repo["name"], repo["private"] ? "Private" : "Public")
     }
     LV_ModifyCol(1, 250)
     LV_ModifyCol(2, 450)
@@ -132,15 +132,23 @@ JSON_Load(json) {
         repo := {}
         repo["name"] := ExtractField(repoText, "name")
         repo["description"] := ExtractField(repoText, "description")
-        repo["html_url"] := ExtractField(repoText, "html_url")
+        repo["html_url"] := ExtractField(repoText, "html_url") ; fixed
         repo["private"] := (ExtractField(repoText, "private")="true")
         obj.Push(repo)
     }
     return obj
 }
 
+; --- Extract field from JSON object ---
 ExtractField(text, field) {
-    if (RegExMatch(text, """" field """\s*:\s*(""|null)?(.*?)(""|,})", m))
-        return m2
+    if (field = "html_url") {
+        ; Capture the full URL correctly
+        if RegExMatch(text, """" field """\s*:\s*""([^""]+)""", m)
+            return m1
+    } else {
+        ; Default for other fields
+        if RegExMatch(text, """" field """\s*:\s*(""|null)?(.*?)(""|,})", m)
+            return m2
+    }
     return ""
 }
